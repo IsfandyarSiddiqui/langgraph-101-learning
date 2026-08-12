@@ -25,7 +25,7 @@ from langchain.chat_models import init_chat_model
 # model = init_chat_model("openai:gpt-4.1-mini")
 
 # Use Anthropic by default
-model = init_chat_model("anthropic:claude-haiku-4-5")
+#model = init_chat_model("anthropic:claude-haiku-4-5")
 
 
 # ---- Azure OpenAI ---------------------------------------------------------
@@ -92,3 +92,32 @@ model = init_chat_model("anthropic:claude-haiku-4-5")
 #         os.environ["GOOGLE_APPLICATION_CREDENTIALS"] = str(project_root / cred_path.lstrip("./"))
 
 # model = init_chat_model("google_vertexai:gemini-2.5-flash")
+
+# # Google AI Studio (Gemini API Key)
+# import os
+# assert os.environ.get("GEMINI_API_KEY"), "GEMINI_API_KEY is not set"
+# from langchain.chat_models import init_chat_model
+
+# model = init_chat_model("google_genai:gemini-2.5-flash")
+
+# # Nvidia Nim
+# import os
+# assert os.environ.get("GEMINI_API_KEY"), "GEMINI_API_KEY is not set"
+# from langchain_nvidia_ai_endpoints import ChatNVIDIA
+
+# os.environ["NVIDIA_API_KEY"] = "nvapi-..."
+
+# llm = ChatNVIDIA(
+#     model="nvidia/nemotron-3-super-120b-a12b",
+#     temperature=0
+# )
+
+import os
+assert os.environ.get("GROQ_API_KEY"), "GROQ_API_KEY is not set"
+
+from langchain_groq import ChatGroq
+
+model = ChatGroq(
+    model="openai/gpt-oss-120b",
+    temperature=0
+)

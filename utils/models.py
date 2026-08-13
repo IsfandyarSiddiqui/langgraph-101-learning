@@ -1,123 +1,128 @@
-"""
-Model Initialization File
+"""Shared chat-model configuration."""
 
-Configures the LLM model used throughout the workshop notebook.
-
-Default: Anthropic (claude-haiku-4-5).
-
-To swap providers:
-  1. Comment out the Default Models section below.
-  2. Uncomment the section for your desired provider.
-  3. Follow the setup notes inline.
-
-Provider sections included (commented out by default):
-  - Azure OpenAI  (needs AZURE_OPENAI_API_KEY + AZURE_OPENAI_ENDPOINT)
-  - AWS Bedrock   (needs AWS credentials + AWS_MODEL_ARN)
-  - Google Vertex (needs GOOGLE_APPLICATION_CREDENTIALS)
-"""
+import inspect
+import os
+from pathlib import Path
+from typing import Any, ClassVar
 
 from dotenv import load_dotenv
-load_dotenv(override=True)
-from langchain.chat_models import init_chat_model
-
-
-# ---- Default Models -------------------------------------------------------
-# model = init_chat_model("openai:gpt-4.1-mini")
-
-# Use Anthropic by default
-#model = init_chat_model("anthropic:claude-haiku-4-5")
-
-
-# ---- Azure OpenAI ---------------------------------------------------------
-# from langchain_openai import AzureChatOpenAI
-# from azure.identity import InteractiveBrowserCredential
-
-# credential = InteractiveBrowserCredential()
-
-# def get_token():
-#     token = credential.get_token("https://cognitiveservices.azure.com/.default")
-#     return token.token
-
-# Make sure AZURE_OPENAI_API_KEY and AZURE_OPENAI_ENDPOINT are set.
-
-# Azure OpenAI: Using environment variables
-# model = AzureChatOpenAI(
-#     azure_deployment="gpt-4o",
-#     streaming=True,
-# )
-
-# Azure OpenAI: Using Azure AD
-# model = AzureChatOpenAI(
-#     api_version="2024-03-01-preview",
-#     azure_endpoint="https://deployment.openai.azure.com/",
-#     azure_deployment="gpt-4o",
-#     azure_ad_token_provider=get_token,
-# )
-
-
-# ---- AWS Bedrock ----------------------------------------------------------
-# import os
-# from langchain_aws import ChatBedrockConverse
-
-# AWS_ACCESS_KEY_ID = os.getenv("AWS_ACCESS_KEY_ID")
-# AWS_SECRET_ACCESS_KEY = os.getenv("AWS_SECRET_ACCESS_KEY")
-# AWS_REGION_NAME = os.getenv("AWS_REGION_NAME")
-# AWS_MODEL_ARN = os.getenv("AWS_MODEL_ARN")
-
-# model = ChatBedrockConverse(
-#     aws_access_key_id=AWS_ACCESS_KEY_ID,
-#     aws_secret_access_key=AWS_SECRET_ACCESS_KEY,
-#     region_name=AWS_REGION_NAME,
-#     provider="anthropic",
-#     model_id=AWS_MODEL_ARN,
-# )
-
-
-# ---- Google Vertex AI -----------------------------------------------------
-# Make sure your Vertex AI credentials are set up and GOOGLE_APPLICATION_CREDENTIALS
-# points to the JSON file.
-
-# import os
-# from pathlib import Path
-# from langchain.chat_models import init_chat_model
-
-# # Resolve project root and load .env (utils/ -> project root is one level up)
-# project_root = Path(__file__).resolve().parent.parent
-# load_dotenv(dotenv_path=project_root / ".env", override=True)
-
-# # Make the credentials path absolute if it was given as a relative path
-# if "GOOGLE_APPLICATION_CREDENTIALS" in os.environ:
-#     cred_path = os.environ["GOOGLE_APPLICATION_CREDENTIALS"]
-#     if not os.path.isabs(cred_path):
-#         os.environ["GOOGLE_APPLICATION_CREDENTIALS"] = str(project_root / cred_path.lstrip("./"))
-
-# model = init_chat_model("google_vertexai:gemini-2.5-flash")
-
-# # Google AI Studio (Gemini API Key)
-# import os
-# assert os.environ.get("GEMINI_API_KEY"), "GEMINI_API_KEY is not set"
-# from langchain.chat_models import init_chat_model
-
-# model = init_chat_model("google_genai:gemini-2.5-flash")
-
-# # Nvidia Nim
-# import os
-# assert os.environ.get("GEMINI_API_KEY"), "GEMINI_API_KEY is not set"
-# from langchain_nvidia_ai_endpoints import ChatNVIDIA
-
-# os.environ["NVIDIA_API_KEY"] = "nvapi-..."
-
-# llm = ChatNVIDIA(
-#     model="nvidia/nemotron-3-super-120b-a12b",
-#     temperature=0
-# )
-
-import os
-assert os.environ.get("GROQ_API_KEY"), "GROQ_API_KEY is not set"
-
+from langchain_anthropic import ChatAnthropic
+from langchain_core.language_models.chat_models import BaseChatModel
+from langchain_google_genai import ChatGoogleGenerativeAI
 from langchain_groq import ChatGroq
+from langchain_openai import ChatOpenAI
 
-model = ChatGroq(
-    model="openai/gpt-oss-120b",
-    temperature=0
+IS_GITHUB_ENV = any(
+    os.getenv(name, "").lower() == "true"
+    for name in ("GITHUB_ACTIONS", "CODESPACES")
 )
+
+if not IS_GITHUB_ENV:
+    load_dotenv(Path(__file__).resolve().parent.parent / ".env", override=False)
+
+
+class ModelProvider:
+    """Base configuration for one model provider."""
+
+    model_class: ClassVar[type[BaseChatModel]]
+    api_key_env: ClassVar[str]
+    models: ClassVar[tuple[str, ...]]
+    options: ClassVar[dict[str, Any]] = {}
+
+    @classmethod
+    def create(cls, model_name: str | None = None, **options: Any) -> BaseChatModel:
+        model_name = model_name or cls.models[-1]
+        if model_name not in cls.models:
+            choices = ", ".join(cls.models)
+            raise ValueError(f"Unknown model {model_name!r}. Choose one of: {choices}.")
+
+        api_key = os.getenv(cls.api_key_env)
+        if not api_key:
+            raise ValueError(f"{cls.api_key_env} is not set.")
+
+        params = inspect.signature(cls.model_class).parameters
+        kwargs = dict(cls.options)
+        kwargs.update(options)
+
+        model_key = next((name for name in ("model", "model_name") if name in params), None)
+        if model_key is None:
+            raise TypeError(f"{cls.model_class.__name__} does not accept a model name parameter.")
+        kwargs[model_key] = model_name
+
+        api_key_key = next(
+            (
+                name
+                for name in (
+                    "api_key",
+                    "openai_api_key",
+                    "anthropic_api_key",
+                    "google_api_key",
+                    "groq_api_key",
+                    "xai_api_key",
+                )
+                if name in params
+            ),
+            None,
+        )
+        if api_key_key is not None:
+            kwargs[api_key_key] = api_key
+
+        return cls.model_class(**kwargs)
+
+
+class OpenAIProvider(ModelProvider):
+    model_class = ChatOpenAI
+    api_key_env = "OPENAI_API_KEY"
+    models = ("gpt-5.6-luna", "gpt-5.6-terra", "gpt-5.6-sol")
+
+
+class AnthropicProvider(ModelProvider):
+    model_class = ChatAnthropic
+    api_key_env = "ANTHROPIC_API_KEY"
+    models = (
+        "claude-haiku-4-5",
+        "claude-sonnet-5",
+        "claude-opus-5",
+        "claude-fable-5",
+    )
+
+
+class GoogleProvider(ModelProvider):
+    model_class = ChatGoogleGenerativeAI
+    api_key_env = "GEMINI_API_KEY"
+    models = ("gemini-3.5-flash-lite", "gemini-3.6-flash", "gemini-3.5-flash")
+
+
+class GroqProvider(ModelProvider):
+    model_class = ChatGroq
+    api_key_env = "GROQ_API_KEY"
+    models = ("openai/gpt-oss-120b",)
+
+
+class GrokProvider(ModelProvider):
+    model_class = ChatOpenAI
+    api_key_env = "GROK_API_KEY"
+    models = ("grok-4.3", "grok-4.5")
+    options = {"base_url": "https://api.x.ai/v1"}
+
+
+PROVIDERS: dict[str, type[ModelProvider]] = {
+    "openai": OpenAIProvider,
+    "anthropic": AnthropicProvider,
+    "google": GoogleProvider,
+    "groq": GroqProvider,
+    "grok": GrokProvider,
+}
+
+MODEL_PROVIDER = os.getenv("MODEL_PROVIDER", "groq").lower()
+MODEL_NAME = os.getenv("MODEL_NAME")
+
+try:
+    provider = PROVIDERS[MODEL_PROVIDER]
+except KeyError as error:
+    choices = ", ".join(PROVIDERS)
+    raise ValueError(
+        f"Unknown MODEL_PROVIDER {MODEL_PROVIDER!r}. Choose one of: {choices}."
+    ) from error
+
+model = provider.create(MODEL_NAME)

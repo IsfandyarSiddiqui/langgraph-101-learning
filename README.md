@@ -129,72 +129,31 @@ For more details, see the [LangGraph CLI documentation](https://docs.langchain.c
 ### Model Configuration
 
 This repository uses a **centralized utils module** (`utils/`) to avoid code duplication. All model configurations and shared utilities are defined here:
-- **`utils/models.py`** - LLM model initialization (OpenAI, Anthropic, Azure, Bedrock, Vertex AI)
+- **`utils/models.py`** - LLM model initialization (OpenAI, Anthropic, Groq, Google, Vertex AI, NVIDIA)
 - **`utils/utils.py`** - Shared utility functions (`show_graph`, `get_engine_for_chinook_db`)
 
-**Default**: OpenAI with `o3-mini` model. To switch providers, edit `utils/models.py` following the instructions below.
+**Default**: OpenAI with `gpt-4.1-mini`.
 
 **Note**: Notebooks automatically add the project root to Python's path, so they can import from `utils` regardless of which subdirectory they're in.
 
-### Azure OpenAI Instructions
+To switch models, set `MODEL_PROVIDER` to a key in the `PROVIDERS` dictionary.
+Set `MODEL_NAME` to one of that provider class's models, or omit it to use the
+last (most capable) model:
 
-If you are using Azure OpenAI instead of OpenAI, follow these steps:
+```bash
+MODEL_PROVIDER="grok"
+MODEL_NAME="grok-4.5"
+GROK_API_KEY="your-api-key"
+```
 
-1. **Set environment variables** in your `.env` file:
-   ```
-   AZURE_OPENAI_API_KEY=your_api_key
-   AZURE_OPENAI_ENDPOINT=your_endpoint
-   AZURE_OPENAI_API_VERSION=2024-03-01-preview
-   ```
+For local development, put these values in `.env`. For GitHub Actions or
+Codespaces, configure them as secrets/environment variables. GitHub exposes
+secrets as environment variables, so application code uses the same interface
+in both environments; `IS_GITHUB_ENV` prevents a local `.env` from replacing
+GitHub-provided values.
 
-2. **Update `utils/models.py`**:
-   - Comment out the "Default Models" section (lines 20-28)
-   - Uncomment the "AZURE OpenAI Version" section (lines 31-57)
-   - Configure the `azure_deployment` name to match your deployment
-
-3. **Done!** All agents and notebooks will automatically use the Azure model
-
-### AWS Bedrock Instructions
-
-If you are using AWS Bedrock instead of OpenAI, follow these steps:
-
-1. **Set environment variables** in your `.env` file:
-   ```
-   AWS_ACCESS_KEY_ID=your_access_key
-   AWS_SECRET_ACCESS_KEY=your_secret_key
-   AWS_REGION_NAME=us-east-1
-   AWS_MODEL_ARN=your_model_arn
-   ```
-
-2. **Update `utils/models.py`**:
-   - Comment out the "Default Models" section (lines 20-28)
-   - Uncomment the "Bedrock Version" section (lines 60-78)
-   - Configure the model settings as needed
-
-3. **Done!** All agents and notebooks will automatically use the Bedrock model
-
-### Google Vertex AI Instructions
-
-If you are using Google Vertex AI instead of OpenAI, follow these steps:
-
-1. **Set up Google Cloud credentials**
-   - Create a service account in your Google Cloud project with Vertex AI permissions
-   - Download the service account JSON key file
-   - Save it as `vertexCred.json` in the project root directory
-
-2. **Configure environment variables** in your `.env` file:
-   ```
-   GOOGLE_APPLICATION_CREDENTIALS=./vertexCred.json
-   ```
-
-3. **Update `utils/models.py`**:
-   - Comment out the "Default Models" section (lines 20-28)
-   - Uncomment the "Google Vertex AI version" section (lines 81-100)
-   - The setup automatically handles credential paths using `Path(__file__)`
-
-4. **Done!** All agents and notebooks will automatically use the Vertex AI model
-
-**Note:** Make sure `vertexCred.json` is added to your `.gitignore` to avoid committing credentials.
+Each provider class owns its LangChain class, API-key variable, models in
+ascending capability order, and provider-specific constructor options.
 
 ## Getting Started
 
